@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Grãos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        /* Estilos personalizados para os inputs */
+        .form-input {
+            /* As classes Tailwind para sombra, aparência, borda, arredondamento, largura, padding,
+               cor do texto e altura da linha já estão aplicadas diretamente no HTML via CDN.
+               Aqui mantemos apenas os estilos personalizados que sobrescrevem ou adicionam. */
+            border-width: 2px; /* Deixa a borda mais grossa que a padrão do Tailwind */
+            border-color: #a0aec0; /* Cor de borda personalizada */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* Sombra personalizada */
+        }
+        .form-input:focus {
+            border-color: #48bb78;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        /* As classes Tailwind para labels e botões já estão diretamente no HTML,
+           não é necessário redefinir seus estilos básicos aqui. */
+
+        /* Estilos para campos com erro */
+        .input-error{
+            border-color: #ef4444; /* 'border-red-500' */
+            color: #ef4444; /* 'text-red-500' */
+        }
+        /* Estilos para mensagens de erro */
+        .error-message{
+            color: #ef4444; /* 'text-red-500' */
+            font-size: 0.75rem; /* 'text-xs' */
+            font-style: italic; /* 'italic' */
+            margin-top: 0.25rem; /* 'mt-1' */
+        }
+
+        /* Estilos para o Modal de Confirmação - Estes estão OK e são personalizados */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #374151; /* gray-700 */
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+        .modal-content h3 {
+            color: #e5e7eb; /* gray-200 */
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+        .modal-content p {
+            color: #d1d5db; /* gray-300 */
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+        }
+        .modal-actions button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            flex-grow: 1; /* Para que os botões tenham largura igual */
+        }
+        .modal-actions .btn-confirm {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            border: none;
+        }
+        .modal-actions .btn-confirm:hover {
+            background-color: #dc2626; /* red-700 */
+        }
+        .modal-actions .btn-cancel {
+            background-color: #6b7280; /* gray-500 */
+            color: white;
+            border: none;
+        }
+        .modal-actions .btn-cancel:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+
+
+        /* Adicionando estilos para responsividade */
+        @media (max-width: 768px) { /* Para telas menores que 768px (tablets, por exemplo) */
+            .form-container, .listagem-container, .relatorio-container {
+                max-width: 100%; /* Ocupa 100% da largura */
+                padding: 1rem;
+            }
+            #filtro-data {
+                flex-direction: column; /* Filtro em coluna em telas pequenas */
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            #filtro-data label {
+                margin-right: 0; /* Remove margem direita dos labels no filtro */
+            }
+        }
+
+        @media (max-width: 640px) {
+            .form-input {
+                padding: 0.75rem; /* Reduz o padding dos inputs em telas menores */
+            }
+            /* Estas classes de botão devem ser estilizadas diretamente no HTML com Tailwind.
+               Caso você queira personalizar além do que o Tailwind oferece, defina as propriedades CSS aqui.
+               Por enquanto, vamos removê-las para evitar erros, pois as classes do HTML já aplicam o estilo. */
+            /*
+            .btn-primary, .btn-secondary, .btn-danger, .btn-tertiary {
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
+            }
+            */
+            .text-xl {
+                font-size: 1.5rem; /* Reduz o tamanho do título em telas menores */
+            }
+            .text-2xl {
+                font-size: 1.75rem; /* Reduz o tamanho do subtítulo em telas menores */
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col items-center justify-start pt-12">
+    <h1 class="text-4xl font-semibold text-green-400 mb-8 animate__animated animate__fadeIn">Controle de Entrada e Saída de Grãos</h1>
+
+    <div id="feedback-message" class="w-full max-w-md mb-4 p-2 text-center text-green-600 font-semibold rounded-md border border-green-600/50 hidden animate__animated">
+    </div>
+
+    <div class="w-full max-w-md bg-gray-800 rounded-xl shadow-lg p-6 mb-8 animate__animated animate__fadeInUp form-container">
+        <h2 class="text-2xl font-semibold text-gray-200 mb-4">Registro de Movimentação</h2>
+        <form id="movimentacao-form" class="space-y-4">
+            <div>
+                <label for="tipo-movimentacao" class="form-label text-gray-300">Tipo de Movimentação:</label>
+                <select id="tipo-movimentacao" required class="form-input bg-gray-700 text-white border-gray-600">
+                    <option value="entrada" class="bg-gray-700 text-white">Entrada</option>
+                    <option value="saida" class="bg-gray-700 text-white">Saída</option>
+                </select>
+            </div>
+            <div>
+                <label for="data-movimentacao" class="form-label text-gray-300">Data:</label>
+                <input type="date" id="data-movimentacao" required class="form-input bg-gray-700 text-white border-gray-600">
+                <div id="data-error" class="error-message text-red-400" style="display: none;"></div>
+            </div>
+            <div>
+                <label for="produto" class="form-label text-gray-300">Produto:</label>
+                <input type="text" id="produto" placeholder="Ex: Soja, Milho" required class="form-input bg-gray-700 text-white border-gray-600">
+                   <div id="produto-error" class="error-message text-red-400" style="display: none;"></div>
+            </div>
+            <div>
+                <label for="quantidade" class="form-label text-gray-300">Quantidade (Kg):</label>
+                <input type="number" id="quantidade" min="0" required class="form-input bg-gray-700 text-white border-gray-600">
+                <div id="quantidade-error" class="error-message text-red-400" style="display: none;"></div>
+            </div>
+            <div id="destino-container" style="display: none;">
+                <label for="destino" class="form-label text-gray-300">Destino:</label>
+                <input type="text" id="destino" placeholder="Ex: Armazém, Cliente" class="form-input bg-gray-700 text-white border-gray-600">
+                   <div id="destino-error" class="error-message text-red-400" style="display: none;"></div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button type="submit" id="submit-button" class="btn-primary bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors duration-300 flex-grow">
+                    Registrar Movimentação
+                </button>
+                <button type="button" id="cancelar-edicao-button" class="btn-tertiary bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors duration-300 hidden flex-grow">
+                    Cancelar Edição
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="w-full max-w-2xl bg-gray-800 rounded-xl shadow-lg p-6 mb-8 animate__animated animate__fadeInUp listagem-container">
+        <h2 class="text-2xl font-semibold text-gray-200 mb-6">Listagem de Movimentações</h2>
+        <div id="filtro-data" class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
+            <label for="data-inicio-filtro" class="text-gray-300 font-medium">Data Início:</label>
+            <input type="date" id="data-inicio-filtro" class="rounded-md border border-gray-600 focus:border-blue-500 focus:ring-blue-500 text-white bg-gray-700 transition-colors duration-300">
+            <label for="data-fim-filtro" class="text-gray-300 font-medium">Data Fim:</label>
+            <input type="date" id="data-fim-filtro" class="rounded-md border border-gray-600 focus:border-blue-500 focus:ring-blue-500 text-white bg-gray-700 transition-colors duration-300">
+            <button id="filtrar-button" class="btn-secondary bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors duration-300">
+                Filtrar
+            </button>
+            <button id="limpar-filtro-button" class="btn-tertiary bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors duration-300">
+                Limpar Filtro
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table id="lista-movimentacoes" class="min-w-full table-auto rounded-xl overflow-hidden">
+                <thead class="bg-gray-700">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Tipo</th>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Data</th>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Produto</th>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Quantidade (Kg)</th>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Destino</th>
+                        <th class="px-4 py-2 text-left text-gray-300 font-semibold uppercase">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-200">
+                    <tr>
+                        <td colspan="6" class="px-4 py-2 text-center text-gray-400">Carregando movimentações...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4">
+            <button id="exportar-excel-button" class="btn-primary bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors duration-300">
+                Exportar para Excel
+            </button>
+        </div>
+    </div>
+
+    <div class="w-full max-w-md bg-gray-800 rounded-xl shadow-lg p-6 mt-8 animate__animated animate__fadeInUp relatorio-container">
+        <h2 class="text-2xl font-semibold text-gray-200 mb-4">Relatório de Estoque</h2>
+        <div class="mb-4">
+            <label for="produto-relatorio" class="form-label text-gray-300">Produto:</label>
+            <select id="produto-relatorio" class="form-input bg-gray-700 text-white border-gray-600">
+                <option value="" class="bg-gray-700 text-white">Todos</option>
+            </select>
+        </div>
+        <div id="relatorio-estoque" class="bg-gray-700 rounded-md p-4 mb-4 text-gray-200">
+            <p class="text-gray-300"><strong>Produto:</strong> -</p>
+            <p class="text-gray-300"><strong>Estoque Atual:</strong> 0 Kg</p>
+        </div>
+        <div class="chart-container">
+            <canvas id="estoque-chart"></canvas>
+        </div>
+        <div class="chart-container mt-6">
+            <canvas id="estoque-pizza-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação (customizado para evitar alert() e confirm()) -->
+    <div id="confirmation-modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title">Confirmação</h3>
+            <p id="modal-message">Você tem certeza?</p>
+            <div class="modal-actions">
+                <button id="modal-confirm-button" class="btn-confirm">Sim</button>
+                <button id="modal-cancel-button" class="btn-cancel">Não</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // URL base do seu backend Flask (certifique-se de que corresponda à porta que o Flask está usando)
+        const API_BASE_URL = 'http://127.0.0.1:5000/api';
+
+        let movimentacoes = []; // Array para armazenar as movimentações carregadas do backend
+        let editingMovimentacaoId = null; // Guarda o ID da movimentação que está sendo editada
+
+        // Referências aos elementos do DOM
+        const movimentacaoForm = document.getElementById('movimentacao-form');
+        const listaMovimentacoes = document.getElementById('lista-movimentacoes').getElementsByTagName('tbody')[0];
+        const feedbackMessage = document.getElementById('feedback-message');
+        const produtoRelatorioSelect = document.getElementById('produto-relatorio');
+        const relatorioEstoqueDiv = document.getElementById('relatorio-estoque');
+        const dataInicioFiltroInput = document.getElementById('data-inicio-filtro');
+        const dataFimFiltroInput = document.getElementById('data-fim-filtro');
+        const filtrarButton = document.getElementById('filtrar-button');
+        const limparFiltroButton = document.getElementById('limpar-filtro-button');
+        const estoqueChartCanvas = document.getElementById('estoque-chart').getContext('2d');
+        const exportarExcelButton = document.getElementById('exportar-excel-button');
+        const tipoMovimentacaoSelect = document.getElementById('tipo-movimentacao');
+        const destinoContainer = document.getElementById('destino-container');
+        const destinoInput = document.getElementById('destino');
+        const estoquePizzaChartCanvas = document.getElementById('estoque-pizza-chart').getContext('2d');
+        const submitButton = document.getElementById('submit-button'); // Botão de submit do formulário
+        const cancelarEdicaoButton = document.getElementById('cancelar-edicao-button'); // Novo botão de cancelar edição
+
+        // Modal de Confirmação
+        const confirmationModalOverlay = document.getElementById('confirmation-modal-overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalConfirmButton = document.getElementById('modal-confirm-button');
+        const modalCancelButton = document.getElementById('modal-cancel-button');
+
+        // Inputs de Validação
+        const dataInput = document.getElementById('data-movimentacao');
+        const produtoInput = document.getElementById('produto');
+        const quantidadeInput = document.getElementById('quantidade');
+        const destinoSaidaInput = document.getElementById('destino');
+
+        // Divs de Mensagem de Erro
+        const dataErrorDiv = document.getElementById('data-error');
+        const produtoErrorDiv = document.getElementById('produto-error');
+        const quantidadeErrorDiv = document.getElementById('quantidade-error');
+        const destinoErrorDiv = document.getElementById('destino-error');
+
+        let produtosCadastrados = new Set();
+        let estoqueChart;
+        let estoquePizzaChart;
+
+        /**
+         * Exibe uma mensagem de feedback na interface do utilizador.
+         * @param {string} mensagem - A mensagem a ser exibida.
+         * @param {'green'|'red'} tipo - O tipo da mensagem (cor verde para sucesso, vermelha para erro).
+         */
+        function mostrarFeedback(mensagem, tipo = 'green') {
+            const feedbackElement = feedbackMessage;
+            feedbackElement.textContent = mensagem;
+            feedbackElement.classList.remove('hidden', 'text-green-400', 'text-red-400', 'border-green-600/50', 'border-red-600/50');
+            feedbackElement.classList.add('animate__fadeIn');
+
+            if (tipo === 'green') {
+                feedbackElement.classList.add('text-green-400', 'border-green-600/50');
+            } else {
+                feedbackElement.classList.add('text-red-400', 'border-red-600/50');
+            }
+
+            setTimeout(() => {
+                feedbackElement.classList.remove('animate__fadeIn');
+                feedbackElement.classList.add('hidden');
+            }, 3000);
+        }
+
+        /**
+         * Formata uma string de data para o formato local (dd/mm/aaaa).
+         * @param {string} dataString - A string de data (ex: 'yyyy-mm-dd').
+         * @returns {string} A data formatada.
+         */
+        function formatarData(dataString) {
+            const data = new Date(dataString + 'T00:00:00'); // Adiciona T00:00:00 para evitar problemas de fuso horário
+            return data.toLocaleDateString('pt-BR');
+        }
+
+        /**
+         * Carrega as movimentações do backend Flask.
+         * @param {string} dataInicio - Data de início para o filtro (opcional).
+         * @param {string} dataFim - Data de fim para o filtro (opcional).
+         */
+        async function loadMovimentacoes(dataInicio = '', dataFim = '') {
+            listaMovimentacoes.innerHTML = '<tr><td colspan="6" class="px-4 py-2 text-center text-gray-400">A carregar movimentações...</td></tr>';
+            try {
+                let url = `${API_BASE_URL}/movimentacoes`;
+                const params = new URLSearchParams();
+                if (dataInicio) params.append('dataInicio', dataInicio);
+                if (dataFim) params.append('dataFim', dataFim);
+
+                if (params.toString()) {
+                    url += `?${params.toString()}`;
+                }
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+                movimentacoes = await response.json();
+                exibirMovimentacoes();
+                atualizarRelatorioEstoque(produtoRelatorioSelect.value); // Mantém o filtro de produto, se houver
+            } catch (error) {
+                console.error("Erro ao carregar movimentações:", error);
+                // Mensagem de erro mais útil para o utilizador
+                mostrarFeedback('Erro ao carregar movimentações do servidor. Certifique-se de que o backend Python está a ser executado em ' + API_BASE_URL.replace('/api', '') + '.', 'red');
+                listaMovimentacoes.innerHTML = '<tr><td colspan="6" class="px-4 py-2 text-center text-red-400">Erro ao carregar dados.</td></tr>';
+            }
+        }
+
+        /**
+         * Exibe as movimentações na tabela.
+         * @param {Array} movimentacoesFiltradas - O array de movimentações a serem exibidas. (agora sempre igual a 'movimentacoes')
+         */
+        function exibirMovimentacoes() {
+            listaMovimentacoes.innerHTML = ''; // Limpa a tabela
+            if (movimentacoes.length === 0) {
+                listaMovimentacoes.innerHTML = '<tr><td colspan="6" class="px-4 py-2 text-center text-gray-400">Nenhuma movimentação encontrada.</td></tr>';
+                return;
+            }
+
+            movimentacoes.forEach(movimentacao => {
+                const row = listaMovimentacoes.insertRow();
+                // Adiciona classes para estilização das linhas da tabela
+                row.classList.add('bg-gray-700', 'hover:bg-gray-600', 'transition-colors', 'duration-200');
+
+                const tipoCell = row.insertCell();
+                const dataCell = row.insertCell();
+                const produtoCell = row.insertCell();
+                const quantidadeCell = row.insertCell();
+                const destinoCell = row.insertCell();
+                const acoesCell = row.insertCell(); // Nova célula para ações
+
+                // Adiciona classes para estilização das células
+                tipoCell.classList.add('px-4', 'py-2', 'border-b', 'border-gray-600');
+                dataCell.classList.add('px-4', 'py-2', 'border-b', 'border-gray-600');
+                produtoCell.classList.add('px-4', 'py-2', 'border-b', 'border-600'); /* Changed this line to fix the error in the original file */
+                quantidadeCell.classList.add('px-4', 'py-2', 'border-b', 'border-gray-600');
+                destinoCell.classList.add('px-4', 'py-2', 'border-b', 'border-gray-600');
+                acoesCell.classList.add('px-4', 'py-2', 'border-b', 'border-gray-600', 'flex', 'gap-2', 'items-center', 'flex-wrap'); // Flex para botões
+
+                tipoCell.textContent = movimentacao.tipo.charAt(0).toUpperCase() + movimentacao.tipo.slice(1); // Capitaliza a primeira letra
+                dataCell.textContent = formatarData(movimentacao.data);
+                produtoCell.textContent = movimentacao.produto;
+                quantidadeCell.textContent = parseFloat(movimentacao.quantidade).toLocaleString('pt-BR'); // Formata para moeda local
+                destinoCell.textContent = movimentacao.destino || '-';
+
+                // Botões de Ação
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Editar';
+                editButton.classList.add('btn-secondary', 'bg-blue-600', 'hover:bg-blue-700', 'text-white', 'px-2', 'py-1', 'rounded', 'text-sm');
+                editButton.onclick = () => startEditMovimentacao(movimentacao.id);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Excluir';
+                deleteButton.classList.add('btn-danger', 'bg-red-600', 'hover:bg-red-700', 'text-white', 'px-2', 'py-1', 'rounded', 'text-sm');
+                deleteButton.onclick = () => deleteMovimentacao(movimentacao.id);
+
+                acoesCell.appendChild(editButton);
+                acoesCell.appendChild(deleteButton);
+            });
+        }
+
+        /**
+         * Calcula o estoque atual de cada produto.
+         * @param {string} produtoFiltro - O produto específico para filtrar (opcional).
+         * @returns {Object} Um objeto com o estoque de cada produto.
+         */
+        function calcularEstoque(produtoFiltro = '') {
+            let estoque = {};
+
+            movimentacoes.forEach(movimentacao => {
+                // Converte produto para minúsculas para comparação insensível a maiúsculas/minúsculas
+                const produtoLower = movimentacao.produto.toLowerCase();
+                const filtroLower = produtoFiltro.toLowerCase();
+
+                if (produtoFiltro === '' || produtoLower === filtroLower) {
+                    if (!estoque[movimentacao.produto]) {
+                        estoque[movimentacao.produto] = 0;
+                    }
+                    const quantidade = parseFloat(movimentacao.quantidade);
+                    if (movimentacao.tipo === 'entrada') {
+                        estoque[movimentacao.produto] += quantidade;
+                    } else {
+                        estoque[movimentacao.produto] -= quantidade;
+                    }
+                }
+            });
+            return estoque;
+        }
+
+        /**
+         * Atualiza a exibição do relatório de estoque e os gráficos.
+         * @param {string} produtoFiltro - O produto específico para filtrar (opcional).
+         */
+        function atualizarRelatorioEstoque(produtoFiltro = '') {
+            const estoque = calcularEstoque(produtoFiltro);
+            let relatorioHTML = '';
+            
+            // Reconstroi a lista de produtos cadastrados para o select
+            produtosCadastrados.clear();
+            movimentacoes.forEach(mov => produtosCadastrados.add(mov.produto));
+            produtoRelatorioSelect.innerHTML = '<option value="" class="bg-gray-700 text-white">Todos</option>';
+            Array.from(produtosCadastrados).sort().forEach(produto => { // Garante ordem alfabética
+                let option = document.createElement('option');
+                option.value = produto;
+                option.textContent = produto;
+                option.className = 'bg-gray-700 text-white';
+                produtoRelatorioSelect.appendChild(option);
+            });
+
+            // Seleciona o produto filtrado no dropdown após a atualização
+            if (produtoFiltro) {
+                produtoRelatorioSelect.value = produtoFiltro;
+            }
+
+            if (Object.keys(estoque).length === 0) {
+                relatorioHTML = '<p class="text-gray-400">Nenhuma movimentação encontrada para o produto selecionado.</p>';
+                relatorioEstoqueDiv.innerHTML = relatorioHTML;
+            } else {
+                if (produtoFiltro && estoque[produtoFiltro] !== undefined) { // Verifica se o produto filtrado existe no estoque
+                    relatorioHTML += `<p class="text-gray-300"><strong>Produto:</strong> ${produtoFiltro}</p>`;
+                    relatorioHTML += `<p class="text-gray-300"><strong>Estoque Atual:</strong> ${estoque[produtoFiltro].toLocaleString('pt-BR')} Kg</p>`;
+                } else if (!produtoFiltro) { // Se não houver filtro, mostra o total geral
+                    let totalEstoque = 0;
+                    for (const produto in estoque) {
+                        totalEstoque += estoque[produto];
+                    }
+                    relatorioHTML += `<p class="text-gray-300"><strong>Total Geral em Estoque:</strong> ${totalEstoque.toLocaleString('pt-BR')} Kg</p>`;
+                } else { // Caso o produto filtrado não exista (e não é o caso de "Todos")
+                    relatorioHTML = '<p class="text-gray-400">Nenhuma movimentação encontrada para o produto selecionado.</p>';
+                }
+                relatorioEstoqueDiv.innerHTML = relatorioHTML;
+            }
+
+            atualizarGraficoEstoque(estoque);
+            atualizarGraficoPizza(estoque);
+        }
+
+        /**
+         * Atualiza o gráfico de barras do estoque.
+         * @param {Object} estoque - O objeto de estoque calculado.
+         */
+        function atualizarGraficoEstoque(estoque) {
+            if (estoqueChart) {
+                estoqueChart.destroy();
+            }
+
+            const produtos = Object.keys(estoque);
+            const quantidades = Object.values(estoque);
+
+            estoqueChart = new Chart(estoqueChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: produtos,
+                    datasets: [{
+                        label: 'Estoque Atual (Kg)',
+                        data: quantidades,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Permite que o gráfico se adapte ao container
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Estoque Atual por Produto',
+                            font: {
+                                size: 16,
+                            },
+                            color: '#e5e7eb' // Cor do texto do título
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#e5e7eb' // Cor do texto da legenda
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#e5e7eb' // Cor dos ticks do eixo Y
+                            },
+                            grid: {
+                                color: '#4a5568' // Cor das linhas de grade do eixo Y
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#e5e7eb' // Cor dos ticks do eixo X
+                            },
+                            grid: {
+                                color: '#4a5568' // Cor das linhas de grade do eixo X
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Atualiza o gráfico de pizza do estoque.
+         * @param {Object} estoque - O objeto de estoque calculado.
+         */
+        function atualizarGraficoPizza(estoque) {
+            if (estoquePizzaChart) {
+                estoquePizzaChart.destroy();
+            }
+
+            const produtos = Object.keys(estoque);
+            const quantidades = Object.values(estoque);
+            
+            // Filtra produtos com quantidade zero para não aparecerem no gráfico de pizza
+            const filteredData = produtos.map((p, i) => ({ product: p, quantity: quantidades[i] }))
+                                        .filter(item => item.quantity > 0);
+
+            const labels = filteredData.map(item => item.product);
+            const data = filteredData.map(item => item.quantity);
+
+
+            estoquePizzaChart = new Chart(estoquePizzaChartCanvas, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Estoque Atual (Kg)',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Distribuição do Estoque por Produto',
+                            font: {
+                                size: 16,
+                            },
+                            color: '#e5e7eb'
+                        },
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#e5e7eb'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Filtra as movimentações por um intervalo de datas.
+         * @param {string} dataInicio - Data de início do filtro (formato 'yyyy-mm-dd').
+         * @param {string} dataFim - Data de fim do filtro (formato 'yyyy-mm-dd').
+         * @returns {Array} Um array de movimentações filtradas.
+         */
+        // Esta função não é mais diretamente usada para filtrar os dados na exibição,
+        // mas o loadMovimentacoes() usa os parâmetros para o backend filtrar.
+        function filtrarMovimentacoesPorData(dataInicio, dataFim) {
+            // A lógica de filtro agora é delegada ao backend.
+            // Esta função pode ser simplificada para apenas chamar loadMovimentacoes.
+            loadMovimentacoes(dataInicio, dataFim);
+        }
+
+        /**
+         * Limpa os campos de filtro de data e recarrega todas as movimentações.
+         */
+        function limparFiltro() {
+            dataInicioFiltroInput.value = '';
+            dataFimFiltroInput.value = '';
+            loadMovimentacoes(); // Carrega todas as movimentações sem filtro
+        }
+
+        /**
+         * Exporta os dados da tabela para um arquivo Excel.
+         */
+        function exportarParaExcel() {
+            if (movimentacoes.length === 0) {
+                mostrarFeedback('Não há dados para exportar.', 'red');
+                return;
+            }
+
+            // Mapeia os dados para o formato desejado no Excel
+            const dadosParaExportar = movimentacoes.map(mov => ({
+                Tipo: mov.tipo.charAt(0).toUpperCase() + mov.tipo.slice(1),
+                Data: formatarData(mov.data),
+                Produto: mov.produto,
+                'Quantidade (Kg)': parseFloat(mov.quantidade),
+                Destino: mov.destino || '-'
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+            XLSX.utils.book_append_sheet(wb, ws, 'Movimentacoes');
+            XLSX.writeFile(wb, 'movimentacoes.xlsx');
+            mostrarFeedback('Dados exportados para Excel com sucesso!', 'green');
+        }
+
+        /**
+         * Valida os campos do formulário antes do envio.
+         * @returns {boolean} True se o formulário for válido, false caso contrário.
+         */
+        function validateForm(){
+            let hasErrors = false;
+
+            // Limpa mensagens de erro e classes de erro antes de revalidar
+            [dataInput, produtoInput, quantidadeInput, destinoSaidaInput].forEach(input => {
+                input.classList.remove('input-error');
+            });
+            [dataErrorDiv, produtoErrorDiv, quantidadeErrorDiv, destinoErrorDiv].forEach(div => {
+                div.style.display = 'none';
+                div.textContent = '';
+            });
+
+            if (!dataInput.value) {
+                dataInput.classList.add('input-error');
+                dataErrorDiv.textContent = 'Por favor, insira a data da movimentação.';
+                dataErrorDiv.style.display = 'block';
+                hasErrors = true;
+            }
+            if (!produtoInput.value.trim()) { // .trim() para garantir que não seja apenas espaços em branco
+                produtoInput.classList.add('input-error');
+                produtoErrorDiv.textContent = 'Por favor, insira o nome do produto.';
+                produtoErrorDiv.style.display = 'block';
+                hasErrors = true;
+            }
+
+            const quantidadeValue = parseFloat(quantidadeInput.value);
+            if (isNaN(quantidadeValue) || quantidadeValue <= 0) {
+                quantidadeInput.classList.add('input-error');
+                quantidadeErrorDiv.textContent = 'Por favor, insira uma quantidade válida (maior que zero).';
+                quantidadeErrorDiv.style.display = 'block';
+                hasErrors = true;
+            }
+
+            if (tipoMovimentacaoSelect.value === 'saida' && !destinoInput.value.trim()) {
+                destinoInput.classList.add('input-error');
+                destinoErrorDiv.textContent = 'Por favor, insira o destino da saída.';
+                destinoErrorDiv.style.display = 'block';
+                hasErrors = true;
+            }
+
+            return !hasErrors;
+        }
+
+        /**
+         * Preenche o formulário com os dados de uma movimentação para edição.
+         * @param {number} id - O ID da movimentação a ser editada.
+         */
+        function startEditMovimentacao(id) {
+            const movimentacaoParaEditar = movimentacoes.find(mov => mov.id === id);
+            if (movimentacaoParaEditar) {
+                editingMovimentacaoId = id;
+                tipoMovimentacaoSelect.value = movimentacaoParaEditar.tipo;
+                dataInput.value = movimentacaoParaEditar.data;
+                produtoInput.value = movimentacaoParaEditar.produto;
+                quantidadeInput.value = movimentacaoParaEditar.quantidade;
+
+                if (movimentacaoParaEditar.tipo === 'saida') {
+                    destinoContainer.style.display = 'block';
+                    destinoInput.required = true;
+                    destinoInput.value = movimentacaoParaEditar.destino || '';
+                } else {
+                    destinoContainer.style.display = 'none';
+                    destinoInput.required = false;
+                    destinoInput.value = '';
+                }
+
+                submitButton.textContent = 'Atualizar Movimentação';
+                cancelarEdicaoButton.classList.remove('hidden');
+
+                // Rola para o formulário
+                movimentacaoForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                mostrarFeedback('Movimentação não encontrada para edição.', 'red');
+            }
+        }
+
+        /**
+         * Cancela a edição, limpa o formulário e retorna ao modo de registo.
+         */
+        function cancelEdit() {
+            editingMovimentacaoId = null;
+            movimentacaoForm.reset();
+            destinoContainer.style.display = 'none';
+            destinoInput.required = false;
+            destinoInput.value = '';
+            submitButton.textContent = 'Registar Movimentação';
+            cancelarEdicaoButton.classList.add('hidden');
+            // Limpa as mensagens de erro ao cancelar
+            [dataInput, produtoInput, quantidadeInput, destinoSaidaInput].forEach(input => {
+                input.classList.remove('input-error');
+            });
+            [dataErrorDiv, produtoErrorDiv, quantidadeErrorDiv, destinoErrorDiv].forEach(div => {
+                div.style.display = 'none';
+                div.textContent = '';
+            });
+        }
+
+        /**
+         * Exibe o modal de confirmação.
+         * @param {string} title - Título do modal.
+         * @param {string} message - Mensagem do modal.
+         * @param {function} onConfirmCallback - Função a ser executada se o utilizador confirmar.
+         */
+        function showConfirmationModal(title, message, onConfirmCallback) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            confirmationModalOverlay.classList.add('show');
+
+            // Limpa listeners anteriores para evitar múltiplos disparos
+            modalConfirmButton.onclick = null;
+            modalCancelButton.onclick = null;
+
+            modalConfirmButton.onclick = () => {
+                onConfirmCallback();
+                hideConfirmationModal();
+            };
+            modalCancelButton.onclick = () => {
+                hideConfirmationModal();
+            };
+        }
+
+        /**
+         * Esconde o modal de confirmação.
+         */
+        function hideConfirmationModal() {
+            confirmationModalOverlay.classList.remove('show');
+        }
+
+        /**
+         * Exclui uma movimentação do backend.
+         * @param {number} id - O ID da movimentação a ser excluída.
+         */
+        async function deleteMovimentacao(id) {
+            showConfirmationModal('Confirmar Exclusão', 'Tem certeza de que deseja excluir esta movimentação?', async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/movimentacoes/${id}`, {
+                        method: 'DELETE',
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `Erro HTTP: ${response.status}`);
+                    }
+                    mostrarFeedback('Movimentação excluída com sucesso!', 'green');
+                    await loadMovimentacoes(); // Recarrega os dados após a exclusão
+                } catch (e) {
+                    console.error("Erro ao excluir movimentação: ", e);
+                    mostrarFeedback('Erro ao excluir movimentação: ' + e.message, 'red');
+                }
+            });
+        }
+
+        // --- Listeners de Eventos ---
+
+        // Alterna a visibilidade do campo de destino com base no tipo de movimentação
+        tipoMovimentacaoSelect.addEventListener('change', (event) => {
+            if (event.target.value === 'saida') {
+                destinoContainer.style.display = 'block';
+                destinoInput.required = true;
+            } else {
+                destinoContainer.style.display = 'none';
+                destinoInput.required = false;
+                destinoInput.value = ''; // Limpa o valor do destino quando muda para 'entrada'
+                // Opcional: Limpa o erro do destino se ele foi escondido
+                destinoInput.classList.remove('input-error');
+                destinoErrorDiv.style.display = 'none';
+                destinoErrorDiv.textContent = '';
+            }
+        });
+
+        // Event listener para o envio do formulário (Adicionar ou Atualizar)
+        movimentacaoForm.addEventListener('submit', async (event) => {
+            event.preventDefault(); // Impede o recarregamento da página
+
+            if (!validateForm()) { // Executa a validação do formulário
+                mostrarFeedback('Por favor, corrija os erros no formulário.', 'red');
+                return;
+            }
+
+            // Pega os valores dos campos do formulário
+            const tipo = tipoMovimentacaoSelect.value;
+            const data = dataInput.value;
+            const produto = produtoInput.value.trim(); // Remove espaços em branco
+            const quantidade = parseFloat(quantidadeInput.value);
+            const destino = tipo === 'saida' ? destinoInput.value.trim() : '';
+
+            const dadosMovimentacao = { tipo, data, produto, quantidade, destino };
+
+            try {
+                let response;
+                if (editingMovimentacaoId) {
+                    // Se estiver a editar, faz uma requisição PUT para atualizar
+                    response = await fetch(`${API_BASE_URL}/movimentacoes/${editingMovimentacaoId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(dadosMovimentacao),
+                    });
+                } else {
+                    // Caso contrário, faz uma requisição POST para adicionar
+                    response = await fetch(`${API_BASE_URL}/movimentacoes`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(dadosMovimentacao),
+                    });
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Erro HTTP: ${response.status}`);
+                }
+
+                mostrarFeedback(editingMovimentacaoId ? 'Movimentação atualizada com sucesso!' : 'Movimentação registada com sucesso!', 'green');
+                cancelEdit(); // Limpa o formulário e redefine o estado de edição
+                await loadMovimentacoes(); // Recarrega os dados após a operação
+            } catch (e) {
+                console.error("Erro ao guardar movimentação: ", e);
+                mostrarFeedback('Erro ao guardar movimentação: ' + e.message, 'red');
+            }
+        });
+
+        // Event listener para o botão de cancelar edição
+        cancelarEdicaoButton.addEventListener('click', cancelEdit);
+
+        // Event listener para o botão de filtrar
+        filtrarButton.addEventListener('click', () => {
+            const dataInicio = dataInicioFiltroInput.value;
+            const dataFim = dataFimFiltroInput.value;
+            loadMovimentacoes(dataInicio, dataFim); // Chama loadMovimentacoes com os filtros
+        });
+
+        // Event listener para o botão de limpar filtro
+        limparFiltroButton.addEventListener('click', limparFiltro);
+
+        // Event listener para o botão de exportar para Excel
+        exportarExcelButton.addEventListener('click', exportarParaExcel);
+
+        // Event listener para a seleção de produto no relatório de estoque
+        produtoRelatorioSelect.addEventListener('change', () => {
+            atualizarRelatorioEstoque(produtoRelatorioSelect.value);
+        });
+
+        // --- Inicialização da Aplicação ---
+        // Carrega as movimentações assim que a página é carregada
+        loadMovimentacoes();
+    </script>
+</body>
+</html>
